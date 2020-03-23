@@ -1,3 +1,10 @@
+# Step Certron
+resource "aws_iam_policy_attachment" "spotfleet_certron_policy" {
+  name       = "spotfleet-modification-policy"
+  roles      = [aws_iam_role.stepfunc_execution_role.name]
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaRole"
+}
+
 # Lambda SpotFleetRequest
 resource "aws_iam_role" "lambda_spotfleet_request_control_role" {
   name = "lambda-spotfleet-request-control-role"
@@ -92,3 +99,22 @@ resource "aws_iam_role" "ec2_execution_role" {
 EOF
 }
 
+resource "aws_iam_role" "stepfunc_execution_role" {
+  name = "stepfunc-execution-role"
+
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": "sts:AssumeRole",
+      "Principal": {
+        "Service": "states.amazonaws.com"
+      },
+      "Effect": "Allow",
+      "Sid": ""
+    }
+  ]
+}
+EOF
+}
