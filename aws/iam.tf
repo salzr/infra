@@ -1,7 +1,35 @@
+# Lambda S3EventCertronHandler
+resource "aws_iam_role" "lambda_s3_event_certron_handler_role" {
+  name = "lambda-s3-event-certron-handler-role"
+  path = "/"
+
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": "sts:AssumeRole",
+      "Principal": {
+        "Service": "lambda.amazonaws.com"
+      },
+      "Effect": "Allow",
+      "Sid": ""
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_s3_event_certron_handler_logs" {
+  role = aws_iam_role.lambda_s3_event_certron_handler_role.name
+  policy_arn = aws_iam_policy.lambda_logging.arn
+}
+
 # Step Certron
 resource "aws_iam_policy_attachment" "spotfleet_certron_policy" {
-  name       = "spotfleet-modification-policy"
-  roles      = [aws_iam_role.stepfunc_execution_role.name]
+  name = "spotfleet-modification-policy"
+  roles = [
+    aws_iam_role.stepfunc_execution_role.name]
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaRole"
 }
 
@@ -28,17 +56,17 @@ EOF
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_spotfleet_request_control_logs" {
-  role       = aws_iam_role.lambda_spotfleet_request_control_role.name
+  role = aws_iam_role.lambda_spotfleet_request_control_role.name
   policy_arn = aws_iam_policy.lambda_logging.arn
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_spotfleet_request_execution_policy" {
-  role       = aws_iam_role.lambda_spotfleet_request_control_role.name
+  role = aws_iam_role.lambda_spotfleet_request_control_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetAutoscaleRole"
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_ec2_readonly_policy" {
-  role       = aws_iam_role.lambda_spotfleet_request_control_role.name
+  role = aws_iam_role.lambda_spotfleet_request_control_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess"
 }
 
@@ -49,14 +77,14 @@ resource "aws_iam_instance_profile" "spotfleet_automata_node" {
 }
 
 resource "aws_iam_role_policy_attachment" "automata_attach_ecs_ec2" {
-  role       = aws_iam_role.ec2_execution_role.name
+  role = aws_iam_role.ec2_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
 }
 
 # General policies
 resource "aws_iam_policy" "lambda_logging" {
-  name        = "lambda-logging"
-  path        = "/"
+  name = "lambda-logging"
+  path = "/"
   description = "IAM policy for logging from a lambda"
 
   policy = <<EOF
