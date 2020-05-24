@@ -91,14 +91,14 @@ func HandleRequest(evt S3Event) error {
 		certs[certName] = b
 	}
 
-	return svcs.createOrUpdateCertificate(domain, certs)
+	return svcs.importCertificate(domain, certs)
 }
 
 func (evt S3Event) logInfo(m string) {
 	log.Printf(LogInfoPattern, evt.Records[0].ResponseElements.RequestID, m)
 }
 
-func (svcs Services) createOrUpdateCertificate(domain string, certs map[string][]byte) error {
+func (svcs Services) importCertificate(domain string, certs map[string][]byte) error {
 	var (
 		certARN   *string
 		nextToken *string
