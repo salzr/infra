@@ -20,9 +20,71 @@ resource "aws_iam_role" "lambda_s3_event_certron_handler_role" {
 EOF
 }
 
+resource "aws_iam_policy" "lambda_certron_s3_access" {
+  name = "lambda-certron-s3-access"
+  path = "/"
+  description = "IAM policy for giving lambda access to s3 resource"
+
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+        "s3:ListAllMyBuckets",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": "*",
+      "Effect": "Allow"
+    },
+    {
+      "Action": "s3:*" ,
+      "Resource": [
+        "arn:aws:s3:::${aws_s3_bucket.certron.id}",
+        "arn:aws:s3:::${aws_s3_bucket.certron.id}/*"
+      ],
+      "Effect": "Allow"
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_policy" "lambda_certron_acm_access" {
+  name = "lambda-certron-acm-access"
+  path = "/"
+  description = "IAM policy for giving lambda access to acm resource"
+
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+        "acm:ImportCertificate",
+        "acm:ListCertificates"
+      ],
+      "Resource": "*",
+      "Effect": "Allow"
+    }
+  ]
+}
+EOF
+}
+
 resource "aws_iam_role_policy_attachment" "lambda_s3_event_certron_handler_logs" {
   role = aws_iam_role.lambda_s3_event_certron_handler_role.name
   policy_arn = aws_iam_policy.lambda_logging.arn
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_s3_event_certron_handler_s3" {
+  role = aws_iam_role.lambda_s3_event_certron_handler_role.name
+  policy_arn = aws_iam_policy.lambda_certron_s3_access.arn
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_s3_event_certron_handler_acm" {
+  role = aws_iam_role.lambda_s3_event_certron_handler_role.name
+  policy_arn = aws_iam_policy.lambda_certron_acm_access.arn
 }
 
 # Step Certron
