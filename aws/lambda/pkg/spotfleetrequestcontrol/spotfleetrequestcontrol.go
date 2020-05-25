@@ -100,6 +100,5 @@ func errOut(err error) error {
 	if aerr, ok := err.(awserr.Error); ok {
 		return aerr
 	}
-
 	return err
 }

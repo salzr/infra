@@ -208,3 +208,38 @@ resource "aws_iam_role" "stepfunc_execution_role" {
 }
 EOF
 }
+
+# Github User
+resource "aws_iam_user" "github_salzr" {
+  name = "github-salzr"
+  path = "/scm/"
+}
+
+resource "aws_iam_access_key" "github_salzr" {
+  user = aws_iam_user.github_salzr.name
+  pgp_key = "keybase:dnsalazar"
+}
+
+resource "aws_iam_user_policy" "github_salzr" {
+  name = "github-salzr"
+  user = aws_iam_user.github_salzr.name
+
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+          "ecr:GetAuthorizationToken"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    }
+  ]
+}
+EOF
+}
+
+output "github_salzr_secret" {
+  value = aws_iam_access_key.github_salzr.encrypted_secret
+}
