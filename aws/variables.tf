@@ -13,3 +13,7 @@ variable "ecs_cluster" {
 variable "subnet_id" {
   default = "subnet-988acfd2"
 }
+
+variable "certron_vers" {
+  default = "v0.0.3"
+}

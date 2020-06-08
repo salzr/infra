@@ -1,3 +1,74 @@
+# ECS Task Definition Certron
+resource "aws_iam_role" "ecs_certron" {
+  name = "ecs-certron"
+  path = "/"
+
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "ecs-tasks.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_policy" "ecs_certron_task_role_policy" {
+  name = "ecs-certron-task-role-policy"
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "route53:ListHostedZones",
+        "route53:ListHostedZonesByName",
+        "route53:GetChange"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "route53:ListResourceRecordSets",
+        "route53:ChangeResourceRecordSets"
+      ],
+      "Resource": "arn:aws:route53:::hostedzone/Z091229319MH07R6MRZ6P"
+    },
+    {
+      "Action": [
+        "s3:ListAllMyBuckets",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": "*",
+      "Effect": "Allow"
+    },
+    {
+      "Action": "s3:*" ,
+      "Resource": [
+        "arn:aws:s3:::${aws_s3_bucket.certron.id}",
+        "arn:aws:s3:::${aws_s3_bucket.certron.id}/*"
+      ],
+      "Effect": "Allow"
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_certron_task_role_policy_attach" {
+  role = aws_iam_role.ecs_certron.name
+  policy_arn = aws_iam_policy.ecs_certron_task_role_policy.arn
+}
+
 # Lambda S3EventCertronHandler
 resource "aws_iam_role" "lambda_s3_event_certron_handler_role" {
   name = "lambda-s3-event-certron-handler-role"
@@ -88,11 +159,14 @@ resource "aws_iam_role_policy_attachment" "lambda_s3_event_certron_handler_acm" 
 }
 
 # Step Certron
-resource "aws_iam_policy_attachment" "spotfleet_certron_policy" {
-  name = "spotfleet-modification-policy"
-  roles = [
-    aws_iam_role.stepfunc_execution_role.name]
+resource "aws_iam_role_policy_attachment" "stepfunc_certron_lambda_policy" {
+  role = aws_iam_role.stepfunc_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaRole"
+}
+
+resource "aws_iam_role_policy_attachment" "stepfunc_certron_ecs_policy" {
+  role = aws_iam_role.stepfunc_execution_role.name
+  policy_arn = aws_iam_policy.stepfunc_execution_role_ecs_task_exec_policy.arn
 }
 
 # Lambda SpotFleetRequest
@@ -168,6 +242,58 @@ EOF
 }
 
 # General execution roles
+resource "aws_iam_role" "ecs_task_execution_certron_role" {
+  name = "ecs-task-execution-certron-role"
+  path = "/"
+
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "ecs-tasks.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_policy" "ecs_task_execution_role_policy" {
+  name = "ecs-task-execution-role-policy"
+  path = "/"
+  description = "IAM policy task interaction with AWS services"
+
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "*",
+      "Effect": "Allow"
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_role_policy_attachment" "task_execution_attach_policy" {
+  role = aws_iam_role.ecs_task_execution_certron_role.name
+  policy_arn = aws_iam_policy.ecs_task_execution_role_policy.arn
+}
+
 resource "aws_iam_role" "ec2_execution_role" {
   name = "ec2-execution-role"
   path = "/"
@@ -203,6 +329,51 @@ resource "aws_iam_role" "stepfunc_execution_role" {
       },
       "Effect": "Allow",
       "Sid": ""
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_policy" "stepfunc_execution_role_ecs_task_exec_policy" {
+  name = "stepfunc-execution-role-ecs-task-exec-policy"
+  path = "/"
+  description = "IAM policy to be able to operate against and ECS task definition"
+
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ecs:RunTask"
+      ],
+      "Resource": "${aws_ecs_task_definition.certron.arn}"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ecs:StopTasks",
+        "ecs:DescribeTasks"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "events:PutTargets",
+        "events:PutRule",
+        "events:DescribeRule"
+      ],
+      "Resource": "arn:aws:events:${var.aws_region}:${var.aws_account_number}:rule/StepFunctionsGetEventsForECSTaskRule"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "iam:PassRole"
+      ],
+      "Resource": "${aws_iam_role.ecs_task_execution_certron_role.arn}"
     }
   ]
 }
