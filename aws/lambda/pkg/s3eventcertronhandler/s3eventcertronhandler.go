@@ -12,13 +12,28 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/acm"
+	"github.com/aws/aws-sdk-go/service/cloudwatchevents"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/spf13/viper"
 )
 
 const (
-	LogInfoPattern = "I [S3Event=%s] %s\n"
-	TmpDir         = "/tmp"
+	platformName = "certron"
+
+	logInfoPattern = "I [S3Event=%s] %s\n"
+	tmpDir         = "/tmp"
+	defaultRegion  = "us-east-1"
+
+	cronExp            = "cron(0 5 %d %d ? %d)"
+	expiryLessDefault  = 1
+	ruleNameFmt        = "cron-certron-%s-%s"
+	stepFuncArnPattern = "arn:aws:states:%s:%s:stateMachine:%s" //arn:aws:states:us-east-1:728160576949:stateMachine:certron
+
+	expiryLessKey         = "EXPIRY_LESS"
+	certRefreshEnabledKey = "CERT_REFRESH_ENABLED"
+	targetRoleArnKey      = "TARGET_ROLE_ARN"
 )
 
 type S3Event struct {
@@ -41,9 +56,14 @@ type S3Event struct {
 type Services struct {
 	downloader *s3manager.Downloader
 	acm        *acm.ACM
+	cwe        *cloudwatchevents.CloudWatchEvents
+	sts        *sts.STS
 }
 
 func HandleRequest(evt S3Event) error {
+	viper.AutomaticEnv()
+	viper.SetEnvPrefix("certron")
+
 	bucket := evt.Records[0].S3.Bucket.Name
 	key := evt.Records[0].S3.Object.Key
 	keyParts := strings.Split(key, string(os.PathSeparator))
@@ -57,10 +77,12 @@ func HandleRequest(evt S3Event) error {
 	svcs := Services{
 		downloader: s3manager.NewDownloader(sess),
 		acm:        acm.New(sess),
+		cwe:        cloudwatchevents.New(sess),
+		sts:        sts.New(sess),
 	}
 
 	filename := filepath.Base(key)
-	filep := filepath.Join(TmpDir, filename)
+	filep := filepath.Join(tmpDir, filename)
 
 	f, err := os.Create(filep)
 	if err != nil {
@@ -76,7 +98,7 @@ func HandleRequest(evt S3Event) error {
 	}
 	evt.logInfo(fmt.Sprintf("file downloaded, %d bytes\n", n))
 
-	certFiles, err := unzip(filep, TmpDir)
+	certFiles, err := unzip(filep, tmpDir)
 	if err != nil {
 		return errOut(fmt.Errorf("failed to unzip archive=%s, %v", filep, err))
 	}
@@ -92,10 +114,6 @@ func HandleRequest(evt S3Event) error {
 	}
 
 	return svcs.importCertificate(domain, certs)
-}
-
-func (evt S3Event) logInfo(m string) {
-	log.Printf(LogInfoPattern, evt.Records[0].ResponseElements.RequestID, m)
 }
 
 func (svcs Services) importCertificate(domain string, certs map[string][]byte) error {
@@ -123,7 +141,7 @@ func (svcs Services) importCertificate(domain string, certs map[string][]byte) e
 		}
 	}
 
-	_, err := svcs.acm.ImportCertificate(&acm.ImportCertificateInput{
+	ico, err := svcs.acm.ImportCertificate(&acm.ImportCertificateInput{
 		Certificate:      certs["cert.pem"],
 		CertificateChain: certs["chain.pem"],
 		PrivateKey:       certs["privKey.pem"],
@@ -133,7 +151,82 @@ func (svcs Services) importCertificate(domain string, certs map[string][]byte) e
 		return errOut(err)
 	}
 
+	if viper.GetBool(certRefreshEnabledKey) {
+		dco, err := svcs.acm.DescribeCertificate(&acm.DescribeCertificateInput{
+			CertificateArn: ico.CertificateArn,
+		})
+		if err != nil {
+			return errOut(err)
+		}
+
+		if err := svcs.setCertificateRefresh(dco.Certificate); err != nil {
+			return errOut(err)
+		}
+	}
+
 	return nil
+}
+
+func (svcs Services) setCertificateRefresh(cert *acm.CertificateDetail) error {
+	expiryLess := viper.GetInt(expiryLessKey)
+	if expiryLess == 0 {
+		expiryLess = expiryLessDefault
+	}
+	expiry := *cert.NotAfter
+	expiry = expiry.AddDate(0, 0, -expiryLess)
+	cron := fmt.Sprintf(cronExp, expiry.Day(), expiry.Month(), expiry.Year())
+
+	identity, err := svcs.sts.GetCallerIdentity(&sts.GetCallerIdentityInput{})
+	if err != nil {
+		return nil
+	}
+
+	ruleName := fmt.Sprintf(ruleNameFmt, *identity.Account, strings.Replace(*cert.DomainName, "*", "_", -1))
+	cweInput := &cloudwatchevents.PutRuleInput{
+		Name:               aws.String(ruleName),
+		Description:        aws.String(fmt.Sprintf("Watch ensures that certificate=(%s) auto renews prior to them expiring", cert.DomainName)),
+		ScheduleExpression: aws.String(cron),
+		State:              aws.String(cloudwatchevents.RuleStateEnabled),
+	}
+	_, err = svcs.cwe.PutRule(cweInput)
+	if err != nil {
+		return err
+	}
+
+	cweTrgInput := &cloudwatchevents.PutTargetsInput{
+		Rule: aws.String(ruleName),
+		Targets: []*cloudwatchevents.Target{
+			{
+				Id:      aws.String(platformName),
+				Arn:     aws.String(fmt.Sprintf(stepFuncArnPattern, defaultRegion, *identity.Account, platformName)),
+				RoleArn: aws.String(viper.GetString(targetRoleArnKey)),
+				Input: aws.String(`{
+  "spot": {
+    "requestId": "sfr-f0ac66b3-6c02-4c5f-bb10-cc2a92628e23",
+    "wait": true
+  },
+  "certron": {
+    "domain": "*.salzr.com",
+    "email": "david@salzr.com",
+    "acceptTerms": "true",
+    "s3": "true",
+    "s3Bucket": "certron-728160576949"
+  }
+}`),
+			},
+		},
+	}
+
+	_, err = svcs.cwe.PutTargets(cweTrgInput)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (evt S3Event) logInfo(m string) {
+	log.Printf(logInfoPattern, evt.Records[0].ResponseElements.RequestID, m)
 }
 
 func errOut(err error) error {

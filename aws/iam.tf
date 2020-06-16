@@ -133,7 +133,8 @@ resource "aws_iam_policy" "lambda_certron_acm_access" {
     {
       "Action": [
         "acm:ImportCertificate",
-        "acm:ListCertificates"
+        "acm:ListCertificates",
+        "acm:DescribeCertificate"
       ],
       "Resource": "*",
       "Effect": "Allow"
@@ -141,6 +142,46 @@ resource "aws_iam_policy" "lambda_certron_acm_access" {
   ]
 }
 EOF
+}
+
+resource "aws_iam_policy" "lambda_certron_cloudwatch_events_policy" {
+  name = "lambda-certron-cloudwatch-events-policy"
+  path = "/"
+  description = "IAM policy for giving the lambda ability to curate cloudwatch events"
+
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+        "events:PutRule",
+        "events:PutTargets"
+      ],
+      "Resource": "*",
+      "Effect": "Allow"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": [
+        "*"
+      ],
+      "Condition": {
+        "StringLike": {
+          "iam:PassedToService": "states.amazonaws.com"
+        }
+      }
+    }
+  ]
+}
+EOF
+}
+
+
+resource "aws_iam_role_policy_attachment" "lambda_s3_event_certron_cloudwatch_events" {
+  role = aws_iam_role.lambda_s3_event_certron_handler_role.name
+  policy_arn = aws_iam_policy.lambda_certron_cloudwatch_events_policy.arn
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_s3_event_certron_handler_logs" {

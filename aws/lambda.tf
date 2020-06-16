@@ -23,6 +23,14 @@ resource "aws_lambda_function" "s3_event_certron_handler" {
   runtime = "go1.x"
   timeout = 300
 
+  environment {
+    variables = {
+      CERTRON_CERT_REFRESH_ENABLED = true
+      CERTRON_EXPIRY_LESS = 1
+      CERTRON_TARGET_ROLE_ARN = aws_iam_role.stepfunc_execution_role.arn
+    }
+  }
+
   depends_on = [
     aws_iam_role_policy_attachment.lambda_s3_event_certron_handler_logs,
     aws_cloudwatch_log_group.s3_event_certron_handler]
