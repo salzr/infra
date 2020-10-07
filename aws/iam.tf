@@ -41,7 +41,10 @@ resource "aws_iam_policy" "ecs_certron_task_role_policy" {
         "route53:ListResourceRecordSets",
         "route53:ChangeResourceRecordSets"
       ],
-      "Resource": "arn:aws:route53:::hostedzone/Z091229319MH07R6MRZ6P"
+      "Resource": [
+        "arn:aws:route53:::hostedzone/Z091229319MH07R6MRZ6P",
+        "arn:aws:route53:::hostedzone/Z3NZSDRMZFX0NL"
+      ]
     },
     {
       "Action": [
@@ -166,12 +169,7 @@ resource "aws_iam_policy" "lambda_certron_cloudwatch_events_policy" {
       "Action": "iam:PassRole",
       "Resource": [
         "*"
-      ],
-      "Condition": {
-        "StringLike": {
-          "iam:PassedToService": "states.amazonaws.com"
-        }
-      }
+      ]
     }
   ]
 }
@@ -354,6 +352,54 @@ resource "aws_iam_role" "ec2_execution_role" {
   ]
 }
 EOF
+}
+
+# Cloudwatch event role
+resource "aws_iam_role" "certron_invoke_step_function_role" {
+  name = "certron-invoke-step-function-role"
+  path = "/"
+
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "events.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_policy" "certron_invoke_step_function_policy" {
+  name = "certron-invoke-step-function-policy"
+  description = "Certron step function execution policy"
+
+  policy = <<EOF
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "states:StartExecution"
+            ],
+            "Resource": [
+                "${aws_sfn_state_machine.certron.id}"
+            ]
+        }
+    ]
+}
+EOF
+}
+
+resource "aws_iam_role_policy_attachment" "certron_invoke_step_function_attachment" {
+  role = aws_iam_role.certron_invoke_step_function_role.name
+  policy_arn = aws_iam_policy.certron_invoke_step_function_policy.arn
 }
 
 resource "aws_iam_role" "stepfunc_execution_role" {

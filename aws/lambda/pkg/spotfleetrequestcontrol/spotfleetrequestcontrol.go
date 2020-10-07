@@ -93,7 +93,7 @@ func (evt SpotFleetRequestEvent) logInfo(m string) {
 func (evt SpotFleetRequestEvent) requestFulfilled(sfrc *ec2.SpotFleetRequestConfig) bool {
 	return ec2.BatchStateActive == *sfrc.SpotFleetRequestState &&
 		ec2.ActivityStatusFulfilled == *sfrc.ActivityStatus &&
-		evt.TargetCapacity <= *sfrc.SpotFleetRequestConfig.TargetCapacity
+		evt.TargetCapacity == *sfrc.SpotFleetRequestConfig.TargetCapacity
 }
 
 func errOut(err error) error {

@@ -5,9 +5,9 @@ resource "aws_sfn_state_machine" "certron" {
   definition = <<EOF
 {
   "Comment": "This workflow manages SpotInstanceRequests target capacity, instance readiness, task state.",
-  "StartAt": "ModifySpotFleetRequest",
+  "StartAt": "SpotFleetRequestAdd",
   "States": {
-    "ModifySpotFleetRequest": {
+    "SpotFleetRequestAdd": {
       "Type": "Task",
       "Resource": "${aws_lambda_function.spotfleet_request_control.arn}",
       "InputPath": "$.spot",
@@ -68,6 +68,27 @@ resource "aws_sfn_state_machine" "certron" {
           ]
         }
       },
+      "ResultPath": null,
+      "Next": "SpotFleetRequestSub"
+    },
+    "SpotFleetRequestSub": {
+      "Type": "Task",
+      "Resource": "${aws_lambda_function.spotfleet_request_control.arn}",
+      "InputPath": "$.spot",
+      "Parameters": {
+        "requestId.$": "$.requestId",
+        "targetCapacity": 0,
+        "wait.$": "$.wait"
+      },
+      "TimeoutSeconds": 300,
+      "Retry" : [
+          {
+            "ErrorEquals": [ "States.Timeout" ],
+            "IntervalSeconds": 3,
+            "MaxAttempts": 4
+          }
+      ],
+      "ResultPath": null,
       "End": true
     }
   }

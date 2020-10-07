@@ -27,7 +27,8 @@ resource "aws_lambda_function" "s3_event_certron_handler" {
     variables = {
       CERTRON_CERT_REFRESH_ENABLED = true
       CERTRON_EXPIRY_LESS = 1
-      CERTRON_TARGET_ROLE_ARN = aws_iam_role.stepfunc_execution_role.arn
+      CERTRON_TARGET_ROLE_ARN = aws_iam_role.certron_invoke_step_function_role.arn
+      CERTRON_SPOTFLEET_REQUEST = aws_spot_fleet_request.automata.id
     }
   }
 

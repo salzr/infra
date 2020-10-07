@@ -1,6 +1,6 @@
 resource "aws_spot_fleet_request" "automata" {
   iam_fleet_role  = "arn:aws:iam::${var.aws_account_number}:role/aws-service-role/spotfleet.amazonaws.com/AWSServiceRoleForEC2SpotFleet"
-  spot_price      = "0.0361"
+  spot_price      = "0.05"
   target_capacity = 0
   valid_until     = "2033-01-01T01:00:00Z"
 

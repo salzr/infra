@@ -34,6 +34,7 @@ const (
 	expiryLessKey         = "EXPIRY_LESS"
 	certRefreshEnabledKey = "CERT_REFRESH_ENABLED"
 	targetRoleArnKey      = "TARGET_ROLE_ARN"
+	spotfleetRequestKey   = "SPOTFLEET_REQUEST"
 )
 
 type S3Event struct {
@@ -184,7 +185,7 @@ func (svcs Services) setCertificateRefresh(cert *acm.CertificateDetail) error {
 	ruleName := fmt.Sprintf(ruleNameFmt, *identity.Account, strings.Replace(*cert.DomainName, "*", "_", -1))
 	cweInput := &cloudwatchevents.PutRuleInput{
 		Name:               aws.String(ruleName),
-		Description:        aws.String(fmt.Sprintf("Watch ensures that certificate=(%s) auto renews prior to them expiring", cert.DomainName)),
+		Description:        aws.String(fmt.Sprintf("Watch ensures that certificate=(%s) auto renews prior to them expiring", *cert.DomainName)),
 		ScheduleExpression: aws.String(cron),
 		State:              aws.String(cloudwatchevents.RuleStateEnabled),
 	}
@@ -200,9 +201,9 @@ func (svcs Services) setCertificateRefresh(cert *acm.CertificateDetail) error {
 				Id:      aws.String(platformName),
 				Arn:     aws.String(fmt.Sprintf(stepFuncArnPattern, defaultRegion, *identity.Account, platformName)),
 				RoleArn: aws.String(viper.GetString(targetRoleArnKey)),
-				Input: aws.String(`{
+				Input: aws.String(fmt.Sprintf(`{
   "spot": {
-    "requestId": "sfr-f0ac66b3-6c02-4c5f-bb10-cc2a92628e23",
+    "requestId": "%s",
     "wait": true
   },
   "certron": {
@@ -212,7 +213,7 @@ func (svcs Services) setCertificateRefresh(cert *acm.CertificateDetail) error {
     "s3": "true",
     "s3Bucket": "certron-728160576949"
   }
-}`),
+}`, viper.GetString(spotfleetRequestKey))),
 			},
 		},
 	}
