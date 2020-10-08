@@ -17,3 +17,7 @@ variable "subnet_id" {
 variable "certron_vers" {
   default = "v0.0.3"
 }
+
+variable "bucket_iomediums" {
+  default = "www.iomediums.com"
+}
