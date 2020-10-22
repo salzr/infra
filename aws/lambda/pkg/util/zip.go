@@ -1,4 +1,4 @@
-package s3eventcertronhandler
+package util
 
 import (
 	"archive/zip"
@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func unzip(src, dest string) ([]string, error) {
+func Unzip(src, dest string) ([]string, error) {
 	filenames := make([]string, 0)
 
 	r, err := zip.OpenReader(src)
