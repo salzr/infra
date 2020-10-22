@@ -1,3 +1,14 @@
+resource "aws_lambda_function" "codepipeline_s3uploader" {
+  function_name = "codepipeline-s3uploader"
+  description = "CodePipeline job for uploading static site artifact"
+  filename = pathexpand("../build/_output/artifacts/codepipeline-s3uploader.zip")
+  source_code_hash = filebase64sha256(pathexpand("../build/_output/artifacts/codepipeline-s3uploader.zip"))
+  handler = "main"
+  role = data.aws_iam_role.codepipeline_lambda_exec_role.arn
+  runtime = "go1.x"
+  timeout = 300
+}
+
 resource "aws_lambda_function" "spotfleet_request_control" {
   function_name = "spotfleet-request-control"
   description = "Manages spotfleet request lifecycle"

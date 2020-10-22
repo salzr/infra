@@ -4,6 +4,7 @@ salzr::golang::lambda_targets() {
   local targets=(
     aws/lambda/cmd/spotfleetrequestcontrol
     aws/lambda/cmd/s3eventcertronhandler
+    aws/lambda/cmd/codepipeline-s3uploader
   )
   echo "${targets[@]}"
 }

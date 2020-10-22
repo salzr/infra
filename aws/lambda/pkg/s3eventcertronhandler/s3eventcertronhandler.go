@@ -17,6 +17,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/spf13/viper"
+
+	"github.com/salzr/infra/aws/lambda/pkg/util"
 )
 
 const (
@@ -99,7 +101,7 @@ func HandleRequest(evt S3Event) error {
 	}
 	evt.logInfo(fmt.Sprintf("file downloaded, %d bytes\n", n))
 
-	certFiles, err := unzip(filep, tmpDir)
+	certFiles, err := util.Unzip(filep, tmpDir)
 	if err != nil {
 		return errOut(fmt.Errorf("failed to unzip archive=%s, %v", filep, err))
 	}
