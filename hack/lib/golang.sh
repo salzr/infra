@@ -5,6 +5,7 @@ salzr::golang::lambda_targets() {
     aws/lambda/cmd/spotfleetrequestcontrol
     aws/lambda/cmd/s3eventcertronhandler
     aws/lambda/cmd/codepipeline-s3uploader
+    aws/lambda/cmd/codepipeline-cfinvalidator
   )
   echo "${targets[@]}"
 }
@@ -32,7 +33,7 @@ salzr::golang::generate_artifacts() {
   mkdir -p "$artifacts_path"
 
   pushd "${project_path}" || exit 1
-    zip "${artifact}" "main"
+  zip "${artifact}" "main"
   popd || exit 1
 
   mv "${project_path}/${artifact}" "${artifacts_path}"

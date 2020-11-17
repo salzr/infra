@@ -72,6 +72,70 @@ resource "aws_iam_role_policy_attachment" "ecs_certron_task_role_policy_attach" 
   policy_arn = aws_iam_policy.ecs_certron_task_role_policy.arn
 }
 
+# CodePipeline CloudFront Invalidation Lambda Role
+resource "aws_iam_role" "codepipeline_cloudfront_invalidation_job" {
+  name = "codepipeline-cloudfront-invalidation-job-role"
+  path = "/"
+
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": "sts:AssumeRole",
+      "Principal": {
+        "Service": "lambda.amazonaws.com"
+      },
+      "Effect": "Allow"
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_policy" "codepipeline_invalidation_job" {
+  name = "codepipeline-invalidation-job"
+  path = "/"
+  description = "Policy for creating CloudFront Invalidations"
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+        "cloudfront:CreateInvalidation",
+        "cloudfront:GetInvalidation"
+      ],
+      "Resource": "*",
+      "Effect": "Allow"
+    },
+    {
+      "Action": [
+        "codepipeline:PutJobSuccessResult",
+        "codepipeline:PutJobFailureResult"
+      ],
+      "Resource": "*",
+      "Effect": "Allow"
+    },
+    {
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "arn:aws:logs:*:*:*",
+      "Effect": "Allow"
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_role_policy_attachment" "attach_codepipeline_invalidation_job" {
+  role = aws_iam_role.codepipeline_cloudfront_invalidation_job.name
+  policy_arn = aws_iam_policy.codepipeline_invalidation_job.arn
+}
+
 # Lambda S3EventCertronHandler
 resource "aws_iam_role" "lambda_s3_event_certron_handler_role" {
   name = "lambda-s3-event-certron-handler-role"
