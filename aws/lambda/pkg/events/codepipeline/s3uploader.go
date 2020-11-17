@@ -28,7 +28,7 @@ const (
 	bucket = "www.iomediums.com"
 )
 
-type service struct {
+type S3UploaderService struct {
 	jobID      string
 	downloader *s3manager.Downloader
 	uploader   *s3manager.Uploader
@@ -57,7 +57,7 @@ func NewFilesIterator(bucket string, paths []string) s3manager.BatchUploadIterat
 	}
 }
 
-func NewService(evt events.CodePipelineEvent) (*service, error) {
+func NewS3UploaderService(evt events.CodePipelineEvent) (*S3UploaderService, error) {
 	cred := evt.CodePipelineJob.Data.ArtifactCredentials
 	sess := session.Must(session.NewSession(&aws.Config{
 		Credentials: credentials.NewStaticCredentialsFromCreds(credentials.Value{
@@ -67,7 +67,7 @@ func NewService(evt events.CodePipelineEvent) (*service, error) {
 		}),
 	}))
 
-	return &service{
+	return &S3UploaderService{
 		jobID:      evt.CodePipelineJob.ID,
 		downloader: s3manager.NewDownloader(sess),
 		uploader:   s3manager.NewUploader(session.Must(session.NewSession())),
@@ -126,18 +126,12 @@ func (iter *DirectoryIterator) UploadObject() s3manager.BatchUploadObject {
 	}
 }
 
-func (s service) Success() error {
-	_, err := s.cp.PutJobSuccessResult(&codepipeline.PutJobSuccessResultInput{
-		JobId: aws.String(s.jobID),
-	})
-	return err
+func (s S3UploaderService) getJobId() string {
+	return s.jobID
 }
 
-func (s service) Failed() error {
-	_, err := s.cp.PutJobFailureResult(&codepipeline.PutJobFailureResultInput{
-		JobId: aws.String(s.jobID),
-	})
-	return err
+func (s S3UploaderService) getCodePipelineClient() *codepipeline.CodePipeline {
+	return s.cp
 }
 
 func errOut(err error) error {
@@ -148,7 +142,7 @@ func errOut(err error) error {
 }
 
 func S3UploaderEventHandler(evt events.CodePipelineEvent) error {
-	svc, err := NewService(evt)
+	svc, err := NewS3UploaderService(evt)
 	if err != nil {
 		return err
 	}
@@ -166,7 +160,7 @@ func S3UploaderEventHandler(evt events.CodePipelineEvent) error {
 	fp := filepath.Join(td, fn)
 	f, err := os.Create(fp)
 	if err != nil {
-		svc.Failed()
+		jobFailed(svc)
 		return logger.Error(errOut(err))
 	}
 
@@ -175,22 +169,22 @@ func S3UploaderEventHandler(evt events.CodePipelineEvent) error {
 		Key:    aws.String(artifact.ObjectKey),
 	})
 	if err != nil {
-		svc.Failed()
+		jobFailed(svc)
 		return logger.Error(errOut(err))
 	}
 	logger.Info(fmt.Sprintf("file downloaded, %d bytes", b))
 
 	files, err := util.Unzip(fp, td)
 	if err != nil {
-		svc.Failed()
+		jobFailed(svc)
 		return logger.Error(errOut(err))
 	}
 
 	iter := NewFilesIterator(bucket, files)
 	if err := svc.uploader.UploadWithIterator(aws.BackgroundContext(), iter); err != nil {
-		svc.Failed()
+		jobFailed(svc)
 		return logger.Error(errOut(err))
 	}
 
-	return svc.Success()
+	return jobSuccess(svc)
 }

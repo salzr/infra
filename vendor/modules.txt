@@ -48,6 +48,7 @@ github.com/aws/aws-sdk-go/private/protocol/rest
 github.com/aws/aws-sdk-go/private/protocol/restxml
 github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil
 github.com/aws/aws-sdk-go/service/acm
+github.com/aws/aws-sdk-go/service/cloudfront
 github.com/aws/aws-sdk-go/service/cloudwatchevents
 github.com/aws/aws-sdk-go/service/codepipeline
 github.com/aws/aws-sdk-go/service/ec2
