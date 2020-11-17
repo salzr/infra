@@ -9,6 +9,17 @@ resource "aws_lambda_function" "codepipeline_s3uploader" {
   timeout = 300
 }
 
+resource "aws_lambda_function" "codepipeline_cfinvalidator" {
+  function_name = "codepipeline-cfinvalidator"
+  description = "CodePipeline job for invalidating CloudFront objects"
+  filename = pathexpand("../build/_output/artifacts/codepipeline-cfinvalidator.zip")
+  source_code_hash = filebase64sha256(pathexpand("../build/_output/artifacts/codepipeline-cfinvalidator.zip"))
+  handler = "main"
+  role = aws_iam_role.codepipeline_cloudfront_invalidation_job.arn
+  runtime = "go1.x"
+  timeout = 300
+}
+
 resource "aws_lambda_function" "spotfleet_request_control" {
   function_name = "spotfleet-request-control"
   description = "Manages spotfleet request lifecycle"
