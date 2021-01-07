@@ -116,10 +116,10 @@ func HandleRequest(evt S3Event) error {
 		certs[certName] = b
 	}
 
-	return svcs.importCertificate(domain, certs)
+	return svcs.importCertificate(domain, bucket, certs)
 }
 
-func (svcs Services) importCertificate(domain string, certs map[string][]byte) error {
+func (svcs Services) importCertificate(domain, bucket string, certs map[string][]byte) error {
 	var (
 		certARN   *string
 		nextToken *string
@@ -162,7 +162,7 @@ func (svcs Services) importCertificate(domain string, certs map[string][]byte) e
 			return errOut(err)
 		}
 
-		if err := svcs.setCertificateRefresh(dco.Certificate); err != nil {
+		if err := svcs.setCertificateRefresh(dco.Certificate, bucket); err != nil {
 			return errOut(err)
 		}
 	}
@@ -170,7 +170,7 @@ func (svcs Services) importCertificate(domain string, certs map[string][]byte) e
 	return nil
 }
 
-func (svcs Services) setCertificateRefresh(cert *acm.CertificateDetail) error {
+func (svcs Services) setCertificateRefresh(cert *acm.CertificateDetail, bucket string) error {
 	expiryLess := viper.GetInt(expiryLessKey)
 	if expiryLess == 0 {
 		expiryLess = expiryLessDefault
@@ -209,13 +209,13 @@ func (svcs Services) setCertificateRefresh(cert *acm.CertificateDetail) error {
     "wait": true
   },
   "certron": {
-    "domain": "*.salzr.com",
+    "domain": "%s",
     "email": "david@salzr.com",
     "acceptTerms": "true",
     "s3": "true",
-    "s3Bucket": "certron-728160576949"
+    "s3Bucket": "%s"
   }
-}`, viper.GetString(spotfleetRequestKey))),
+}`, viper.GetString(spotfleetRequestKey), *cert.DomainName, bucket)),
 			},
 		},
 	}
